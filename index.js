@@ -23,6 +23,29 @@ tds.addRule('wppreblock', {
     }
 })
 
+var count = 0;
+var postFileLocation = '';
+tds.addRule('base64img', {
+    filter: ['img'],
+    replacement: function (content, node) {
+        var src = node.src
+        if(src.startsWith('data:image/png;base64,')) {
+            count++;
+            src = src.replace('data:image/png;base64,', '').replace(/[^-a-z0-9+/=]/gi,'');
+
+            var imageFilePrefix = postFileLocation.replace('.md', '')
+            var imagePathAndFilename = imageFilePrefix+count+".png";
+            fs.writeFile(imagePathAndFilename, src, 'base64', function(err) {
+                console.log(err);
+            });
+            var filename = imagePathAndFilename.substring(imagePathAndFilename.lastIndexOf("/") + 1);
+            return `{{<imglink title="Image" src="${filename}" size="500x500">}})`;
+        }
+        console.log(`NONE BASE 64 IMAGE ${src}`)
+        return `![Image alt](${src})`;
+    }
+})
+
 // console.log(`No. of arguments passed: ${process.argv.length}`);
 
 if (process.argv.length < 5){
@@ -189,6 +212,8 @@ function wordpressImport(backupXmlFile, outputDir){
                             postContent = '<p>' + postContent.replace(/(\r?\n){2}/g, '</p>\n\n<p>') + '</p>';
                         }
                         content = '<div>'+postContent+'</div>'; //to resolve error if plain text returned
+                        count = 0;
+                        postFileLocation = postMap.postName;
                         markdown = tds.turndown(content);
                         // console.log(markdown);
 
@@ -365,6 +390,8 @@ function bloggerImport(backupXmlFile, outputDir){
                     if (entry.content && entry.content[0] && entry.content[0]['_']){
                         // console.log('content available');
                         content = entry.content[0]['_'];
+                        count = 0;
+                        postFileLocation = postMap.postName;
                         markdown = tds.turndown(content);
                         // console.log(markdown);
                     }
