@@ -27,9 +27,20 @@ tds.addRule('wppreblock', {
 
 if (process.argv.length < 5){
     // ${process.argv[1]}
-    console.log(`Usage: blog2md [b|w] <BACKUP XML> <OUTPUT DIR> m|s`)
-    console.log(`\t b for parsing Blogger(Blogspot) backup`);
-    console.log(`\t w for parsing WordPress backup`);
+    console.log(`Usage:`);
+    console.log(`\tnode index.js <b|w> <BACKUP_XML> <OUTPUT_DIR> [m|s] [paragraph-fix] [create-page-bundles]`)
+    console.log(`Where:`);
+    console.log(`\t b|w - Indicates the source type to process, b = Blogger, w = WordPress`);
+    console.log(`\t BACKUP_XML - Name of the backup file to process. Include the path in another directory`);
+    console.log(`\t OUTPUT_DIR - Output directory relative to the current directory`);
+    console.log(`Optional:`);
+    console.log(`\t m|s - Indicates whether to include comments in the post file or a separate file`);
+    console.log(`\t paragraph-fix - Include this to fix WordPress posts by converting newlines to paragraphs`);
+    console.log(`\t create-page-bundles - Include this to output in page bundles`);
+    console.log(`Examples:`);
+    console.log(`\t node index.js b blog-03-21-2022.xml out`);
+    console.log(`\t node index.js b blog-03-21-2022.xml out m`);
+    console.log(`\t node index.js b blog-03-21-2022.xml out create-page-bundles`);
     return 1;
 }
 
@@ -41,6 +52,9 @@ var outputDir = process.argv[4];
 var mergeComments = (process.argv[5] == 'm')?'m':'s' ;
 /** Apply a fix to WordPress posts to convert newlines to paragraphs. */
 var applyParagraphFix = (process.argv.indexOf('paragraph-fix') >= 0);
+
+/** Indicate whether files should be output to page bundle directories i.e. content/post-name/index.md */
+var createPageBundles = (process.argv.indexOf('create-page-bundles') >= 0);
 
 
 if (fs.existsSync(outputDir)) {
@@ -163,12 +177,10 @@ function wordpressImport(backupXmlFile, outputDir){
                         // console.log(tagString);
                     }
 
-                    var pmap = {fname:'', comments:[]};
-                    pmap.fname = outputDir+'/'+fname+'-comments.md';
-
-                    fname = outputDir+'/'+fname+'.md';
-                    pmap.postName = fname;
-                    console.log(`fname: '${fname}'`);
+                    var postOutput = getPostOutput(fname);
+                    postMap.postName = postOutput.postName
+                    postMap.fname = postOutput.fname;
+                    postMap.comments = [];
                     
                     if (post["content:encoded"]){
                         // console.log('content available');
@@ -182,9 +194,9 @@ function wordpressImport(backupXmlFile, outputDir){
 
                         fileHeader = `---\ntitle: '${title}'\ndate: ${published}\ndraft: ${draft}\n${tagString}---\n`;
                         fileContent = `${fileHeader}\n${markdown}`;
-                        pmap.header = `${fileHeader}\n`;
+                        postMap.header = `${fileHeader}\n`;
 
-                        writeToFile(fname, fileContent);
+                        writeToFile(postOutput.postName, fileContent);
                         
                     }
 
@@ -222,13 +234,13 @@ function wordpressImport(backupXmlFile, outputDir){
 
                             ccontent += `#### [${cmt.author.name}](${cmt.author.url} "${cmt.author.email}") - ${cmt.published}\n\n${cmt.content}\n<hr />\n`;
 
-                            pmap.comments.push(cmt);
+                            postMap.comments.push(cmt);
                         }
                     });
 
                     //just a hack to re-use blogger writecomments method
-                    if (pmap && pmap.comments && pmap.comments.length){
-                        writeComments({"0": pmap});
+                    if (postMap && postMap.comments && postMap.comments.length){
+                        writeComments({"0": postMap});
                     }
 
                 });
@@ -249,6 +261,34 @@ function getFileName(text) {
             .toLowerCase();              // finally make it all lower case
     return newFileName;
 }
+
+function getPostOutput(sanitizedTitle) {
+    var postOutput = {};
+    
+    var entryFolder = outputDir;
+    if(createPageBundles) {
+        entryFolder = outputDir + '/' + sanitizedTitle;
+    }
+
+    if (!fs.existsSync(entryFolder)) {
+        fs.mkdirSync(entryFolder);
+    }
+
+    var postName = entryFolder + '/' + sanitizedTitle + '.md';
+    if(createPageBundles) {
+        postName = entryFolder + '/index.md';
+    }
+
+    var fname = postName.replace('.md', '-comments.md')
+    if(createPageBundles) {
+        fname = entryFolder + '/comments.md';
+    }
+    
+    postOutput.postName = postName;
+    postOutput.fname = fname;
+    return postOutput;
+}
+
  
 function bloggerImport(backupXmlFile, outputDir){
     var parser = new xml2js.Parser();
@@ -316,10 +356,9 @@ function bloggerImport(backupXmlFile, outputDir){
                         url = urlLink[0]['$'].href;
                     }
 
-                    var fname = outputDir + '/' + path.basename(sanitizedTitle) + '.md';
-                    console.log(fname);
-                    postMap.postName = fname
-                    postMap.fname = fname.replace('.md', '-comments.md');
+                    var postOutput = getPostOutput(sanitizedTitle);
+                    postMap.postName = postOutput.postName
+                    postMap.fname = postOutput.fname;
                     postMap.comments = [];
 
 
@@ -328,8 +367,6 @@ function bloggerImport(backupXmlFile, outputDir){
                         content = entry.content[0]['_'];
                         markdown = tds.turndown(content);
                         // console.log(markdown);
-
-                        
                     }
 
                     var tagLabel = [];
@@ -367,7 +404,7 @@ function bloggerImport(backupXmlFile, outputDir){
                     postMap.header = fileHeader;
                     postMaps[postMap.pid] = postMap;
 
-                    writeToFile(fname, fileContent)
+                    writeToFile(postOutput.postName, fileContent)
                     
                 });
 
