@@ -11,10 +11,13 @@ const os = require('os');
 const path = require('path');
 const xml2js = require('xml2js');
 const sanitize = require('sanitize-filename');
-const TurndownService = require('turndown');
-var moment = require('moment');
+const moment = require('moment');
+const TurndownService = require('@joplin/turndown')
+const turndownPluginGfm = require('@joplin/turndown-plugin-gfm')
 
-var tds = new TurndownService({ codeBlockStyle: 'fenced', fence: '```' })
+const tds = new TurndownService({ codeBlockStyle: 'fenced', fence: '```' })
+
+tds.use(turndownPluginGfm.gfm)
 
 tds.addRule('wppreblock', {
     filter: ['pre'],
