@@ -12,6 +12,7 @@ const path = require('path');
 const xml2js = require('xml2js');
 const sanitize = require('sanitize-filename');
 const moment = require('moment');
+const http = require('http');
 const TurndownService = require('@joplin/turndown')
 const turndownPluginGfm = require('@joplin/turndown-plugin-gfm')
 
@@ -44,10 +45,52 @@ tds.addRule('base64img', {
             var filename = imagePathAndFilename.substring(imagePathAndFilename.lastIndexOf("/") + 1);
             return `{{<imglink title="Image" src="${filename}" size="500x500">}})`;
         }
-        console.log(`NONE BASE 64 IMAGE ${src}`)
         return `![Image alt](${src})`;
     }
 })
+
+tds.addRule('images', {
+    filter: ['a'],
+    replacement: function(content, node) {
+        var imgNode = node.getElementsByTagName('img');
+        if(imgNode.length > 0) {
+            count++;
+            var imgURL = node.href
+            var sourceURL = new URL(imgURL)
+
+            var imageFilePrefix = postFileLocation.replace('.md', '')
+            var imageFileType = sourceURL.pathname.substring(sourceURL.pathname.lastIndexOf('.')+1);
+            var imagePathAndFilename = imageFilePrefix + count + "." + imageFileType;
+
+            download(imgURL, imagePathAndFilename)
+            
+            var filename = imagePathAndFilename.substring(imagePathAndFilename.lastIndexOf("/") + 1);
+            return `{{<imglink title="Image" src="${filename}" size="500x500">}})`;
+        }
+        
+        return `![${node.innerHTML}](${node.href})`
+    }
+})
+
+function download(srcURL, dest) {
+    http.get(srcURL, (res) => {
+
+        // Open file in local filesystem
+        const file = fs.createWriteStream(dest);
+    
+        // Write data into local file
+        res.pipe(file);
+    
+        // Close the file
+        file.on('finish', () => {
+            file.close();
+            console.log(`File downloaded!`);
+        });
+    
+    }).on("error", (err) => {
+        console.log("Error: ", err.message);
+    });
+};
 
 // console.log(`No. of arguments passed: ${process.argv.length}`);
 
