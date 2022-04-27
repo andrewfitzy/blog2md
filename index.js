@@ -13,6 +13,7 @@ const xml2js = require('xml2js');
 const sanitize = require('sanitize-filename');
 const moment = require('moment');
 const http = require('http');
+const striptags = require('striptags');
 const TurndownService = require('@joplin/turndown')
 const turndownPluginGfm = require('@joplin/turndown-plugin-gfm')
 
@@ -22,10 +23,13 @@ tds.use(turndownPluginGfm.gfm)
 
 tds.addRule('wppreblock', {
     filter: ['pre'],
-    replacement: function(content) {
-        return '```\n' + content + '\n```'
+    replacement: function(content, node) {
+        var out = striptags(node.outerHTML, '<br>')
+        out = striptags(out, ['<br>'], '\n')
+        return '```\n' + out + '\n```'
     }
 })
+
 
 var count = 0;
 var postFileLocation = '';
